@@ -1,0 +1,436 @@
+//
+//  NotchWindowController.swift
+//  Droppy
+//
+//  Created by Jordy Spruit on 02/01/2026.
+//
+
+import AppKit
+import SwiftUI
+import Combine
+import UniformTypeIdentifiers
+
+/// Manages the transparent overlay window positioned at the MacBook notch
+final class NotchWindowController: NSObject, ObservableObject {
+    /// The overlay window
+    private var notchWindow: NotchWindow?
+    
+    /// Shared instance
+    static let shared = NotchWindowController()
+    
+    private override init() {
+        super.init()
+    }
+    
+    /// Sets up and shows the notch overlay window
+    func setupNotchWindow() {
+        guard let screen = NSScreen.main else { return }
+        
+        // Window needs to be wide enough for expanded shelf and tall enough for glow + shelf
+        let windowWidth: CGFloat = 500
+        let windowHeight: CGFloat = 200
+        
+        // Position at top center of screen (aligned with notch)
+        let xPosition = (screen.frame.width - windowWidth) / 2
+        let yPosition = screen.frame.height - windowHeight
+        
+        let windowFrame = NSRect(
+            x: xPosition,
+            y: yPosition,
+            width: windowWidth,
+            height: windowHeight
+        )
+        
+        // Create the custom window
+        let window = NotchWindow(
+            contentRect: windowFrame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        
+        // Set up the view hierarchy
+        // 1. Create the SwiftUI view
+        let notchView = NotchShelfView(state: DroppyState.shared)
+        let hostingView = NSHostingView(rootView: notchView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        
+        // 2. Create the container view that handles drops
+        let dragContainer = NotchDragContainer(frame: NSRect(origin: .zero, size: windowFrame.size))
+        dragContainer.hostingView = hostingView
+        dragContainer.addSubview(hostingView)
+        
+        // Layout
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: dragContainer.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: dragContainer.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: dragContainer.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: dragContainer.trailingAnchor)
+        ])
+        
+        window.contentView = dragContainer
+        
+        // Show the window
+        window.orderFrontRegardless()
+        
+        self.notchWindow = window
+    }
+    
+    /// Closes the notch window
+    func closeWindow() {
+        notchWindow?.close()
+        notchWindow = nil
+    }
+}
+
+// MARK: - Custom Window Configuration
+
+class NotchWindow: NSWindow {
+    private var updateTimer: Timer?
+    private var globalMouseMonitor: Any?
+    
+    // The notch activation area (centered at top of screen)
+    private var notchRect: NSRect {
+        guard let screen = NSScreen.main else { return .zero }
+        let notchWidth: CGFloat = 180
+        let notchHeight: CGFloat = 32
+        let centerX = screen.frame.width / 2
+        return NSRect(
+            x: centerX - notchWidth / 2,
+            y: screen.frame.height - notchHeight,
+            width: notchWidth,
+            height: notchHeight
+        )
+    }
+    
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        
+        // Configure window properties for overlay behavior
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.hasShadow = false
+        self.level = .statusBar
+        self.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        self.isMovableByWindowBackground = false
+        self.acceptsMouseMovedEvents = true
+        
+        // START with ignoring mouse events - let clicks pass through in idle state
+        self.ignoresMouseEvents = true
+        
+        // Set up global mouse monitor to detect when mouse is over notch
+        // This doesn't block events - it receives copies of events
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            self?.handleGlobalMouseEvent(event)
+        }
+        
+        // Also monitor local events when window is active
+        NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+            self?.handleGlobalMouseEvent(event)
+            return event
+        }
+        
+        // Set up a timer to periodically update ignoresMouseEvents
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+            self?.updateMouseEventHandling()
+        }
+    }
+    
+    deinit {
+        updateTimer?.invalidate()
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+    
+    private func handleGlobalMouseEvent(_ event: NSEvent) {
+        // Get global mouse position
+        let mouseLocation = NSEvent.mouseLocation
+        
+        // Check if mouse is over the notch area
+        let isOverNotch = notchRect.contains(mouseLocation)
+        
+        // Only update if not dragging (drag monitor handles that)
+        if !DragMonitor.shared.isDragging {
+            let currentlyHovering = DroppyState.shared.isMouseHovering
+            
+            if isOverNotch && !currentlyHovering {
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                        DroppyState.shared.isMouseHovering = true
+                    }
+                }
+            } else if !isOverNotch && currentlyHovering && !DroppyState.shared.isExpanded {
+                // Only reset hover if not expanded (expanded has its own area)
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                        DroppyState.shared.isMouseHovering = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func updateMouseEventHandling() {
+        let state = DroppyState.shared
+        let dragMonitor = DragMonitor.shared
+        
+        // Window should accept mouse events when:
+        // - Shelf is expanded (need to interact with items)
+        // - User is hovering over notch (need click to open)
+        // - Files are being dragged (need to accept drops)
+        let shouldAcceptEvents = state.isExpanded || state.isMouseHovering || dragMonitor.isDragging || state.isDropTargeted
+        
+        if self.ignoresMouseEvents == shouldAcceptEvents {
+            self.ignoresMouseEvents = !shouldAcceptEvents
+        }
+    }
+    
+    // Ensure the window can become key to receive input
+    override var canBecomeKey: Bool {
+        return true
+    }
+}
+
+// MARK: - Drag Handling Container View
+
+class NotchDragContainer: NSView {
+    
+    weak var hostingView: NSView?
+    private var filePromiseQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
+    
+    private var trackingArea: NSTrackingArea?
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        
+        // Drag types
+        var types: [NSPasteboard.PasteboardType] = [
+            .fileURL,
+            .URL,
+            .string,
+            NSPasteboard.PasteboardType(UTType.data.identifier),
+            NSPasteboard.PasteboardType(UTType.item.identifier)
+        ]
+        
+        // Add file promise types
+        types.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
+        
+        registerForDraggedTypes(types)
+        
+        // SETUP TRACKING AREA FOR HOVER
+        updateTrackingAreas()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        
+        if let trackingArea = self.trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect]
+        trackingArea = NSTrackingArea(rect: self.bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea!)
+    }
+    
+    // MARK: - Mouse Tracking Methods
+    
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        // Global monitor in NotchWindow handles hover detection
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        // Global monitor in NotchWindow handles hover detection
+        // We don't update state here to avoid conflicts
+    }
+    
+    // We don't need to handle mouseEntered/Exited/Moved here specifically if the SwiftUI view handles it,
+    // BUT for a transparent window, the window/view needs to 'see' the mouse.
+    // By adding the tracking area, we ensure AppKit wakes up for this view.
+    
+    // Pass mouse events down to SwiftUI if not handled
+    // Pass mouse events down to SwiftUI if not handled
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // We want to be selective about when we intercept events vs letting them pass through to apps below.
+        
+        // 1. Convert point to view coordinates
+        let localPoint = convert(point, from: nil)
+        
+        // 2. Check current state
+        let isExpanded = DroppyState.shared.isExpanded
+        let isDragging = DroppyState.shared.isDropTargeted // Or check drag monitor if needed
+        
+        // 3. Define the active interaction area
+        // If expanded, the whole expanded area is interactive
+        if isExpanded {
+            // Expanded shelf is roughly top 450px width, variable height
+            // But we can just rely on the SwiftUI view's frame if possible.
+            // Since we don't know the exact SwiftUI frame here easily, we can estimate:
+            // Expanded width is 450. Centered.
+            let expandedWidth: CGFloat = 450
+            let centerX = bounds.midX
+            let xRange = (centerX - expandedWidth/2)...(centerX + expandedWidth/2)
+            
+            // Height calculation from NotchShelfView (approx)
+             let rowCount = (Double(DroppyState.shared.items.count) / 5.0).rounded(.up)
+             let expandedHeight = max(1, rowCount) * 110 + 40
+             
+            // Y is from top (bounds.height) down to (bounds.height - expandedHeight)
+            let yRange = (bounds.height - expandedHeight)...bounds.height
+            
+            if xRange.contains(localPoint.x) && yRange.contains(localPoint.y) {
+                 return super.hitTest(point)
+            }
+        }
+        
+        // IfDragging, we want the drop zone active
+        if isDragging {
+             // Drop zone is roughly 260px wide, 82px high (notch + padding)
+             let dropWidth: CGFloat = 260
+             let dropHeight: CGFloat = 100 // generous for drop
+             
+             let centerX = bounds.midX
+             let xRange = (centerX - dropWidth/2)...(centerX + dropWidth/2)
+             let yRange = (bounds.height - dropHeight)...bounds.height
+             
+             if xRange.contains(localPoint.x) && yRange.contains(localPoint.y) {
+                  return super.hitTest(point)
+             }
+        }
+        
+        // If Idle (just hovering to open), strict notch area
+        // Notch is ~160-180 wide, ~32 high.
+        // User complained the activation area is too wide and blocks browser URL bars (which are below the menu bar).
+        // Strategy: 
+        // 1. Default "Sleep" state: VERY strict area. Just the notch + tiny margin. 
+        //    Height <= 44 to stay within standard menu bar height.
+        // 2. "Hovering" state: If user triggered hover, expand area to include the "Open Shelf" button so they can click it.
+        
+        let isHovering = DroppyState.shared.isMouseHovering
+        
+        if isHovering {
+             // Expand to include the "Open Shelf" indicator (offset y ~80, height ~30-40)
+             let hoverWidth: CGFloat = 240
+             let hoverHeight: CGFloat = 120
+             
+             let centerX = bounds.midX
+             let xRange = (centerX - hoverWidth/2)...(centerX + hoverWidth/2)
+             let yRange = (bounds.height - hoverHeight)...bounds.height
+             
+             if xRange.contains(localPoint.x) && yRange.contains(localPoint.y) {
+                  return super.hitTest(point)
+             }
+        }
+
+        // IDLE STATE: Pass through ALL events to underlying apps.
+        // The hover detection is handled by the tracking area, not hitTest.
+        // This ensures we don't block Safari URL bars, Outlook search fields, etc.
+        // The user can still trigger hover by moving into the notch area,
+        // and once isMouseHovering is true, we capture events above.
+        return nil
+    }
+    
+    // MARK: - NSDraggingDestination Methods
+    
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        // Highlight UI
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                DroppyState.shared.isDropTargeted = true
+            }
+        }
+        return .copy
+    }
+    
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        // Remove highlight
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                DroppyState.shared.isDropTargeted = false
+            }
+        }
+    }
+    
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        // Ensure highlight is removed
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                DroppyState.shared.isDropTargeted = false
+            }
+        }
+    }
+    
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        // Remove highlight
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                DroppyState.shared.isDropTargeted = false
+            }
+        }
+        
+        
+        let pasteboard = sender.draggingPasteboard
+
+        
+        // 1. Handle File Promises (e.g. from Outlook, Photos)
+        if let promiseReceivers = pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver],
+           !promiseReceivers.isEmpty {
+            
+            // Create a temporary directory for these files
+            let dropLocation = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("DroppyDrops-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: dropLocation, withIntermediateDirectories: true, attributes: nil)
+            
+            for receiver in promiseReceivers {
+                receiver.receivePromisedFiles(atDestination: dropLocation, options: [:], operationQueue: filePromiseQueue) { fileURL, error in
+                    if let error = error {
+                        print("Error receiving promised file: \(error)")
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            DroppyState.shared.addItems(from: [fileURL])
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        
+        // 2. Handle File URLs
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true
+        ]) as? [URL], !urls.isEmpty {
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    DroppyState.shared.addItems(from: urls)
+                }
+            }
+            return true
+        }
+        
+        // 3. Handle Web URLs
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty {
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    DroppyState.shared.addItems(from: urls)
+                }
+            }
+            return true
+        }
+        
+        return false
+    }
+}

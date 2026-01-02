@@ -61,7 +61,7 @@ struct ShelfView: View {
                     .fill(.primary.opacity(0.05))
                     .frame(width: 60, height: 60)
                 
-                Image(systemName: "square.and.arrow.down")
+                Image(systemName: "tray.and.arrow.down")
                     .font(.system(size: 24, weight: .light))
                     .foregroundStyle(.secondary)
             }

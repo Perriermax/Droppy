@@ -7,18 +7,15 @@
 
 import SwiftUI
 
+/// Main content view - redirects to ShelfView
+/// This file is kept for Xcode template compatibility
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        ShelfView(state: DroppyState.shared)
     }
 }
 
 #Preview {
     ContentView()
+        .frame(width: 320, height: 280)
 }
