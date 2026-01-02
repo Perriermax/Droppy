@@ -186,6 +186,26 @@ class NotchWindow: NSWindow {
         if self.ignoresMouseEvents == shouldAcceptEvents {
             self.ignoresMouseEvents = !shouldAcceptEvents
         }
+        
+        // Check for fullscreen apps (games/videos)
+        checkForFullscreen()
+    }
+    
+    private func checkForFullscreen() {
+        guard let screen = NSScreen.main else { return }
+        
+        // logic: if the visible frame equals the full frame, the menu bar is hidden
+        // (typical for fullscreen games and videos)
+        let isFullscreen = screen.visibleFrame.equalTo(screen.frame)
+        
+        let targetAlpha: CGFloat = isFullscreen ? 0.0 : 1.0
+        
+        if self.alphaValue != targetAlpha {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.5
+                self.animator().alphaValue = targetAlpha
+            }
+        }
     }
     
     // Ensure the window can become key to receive input
