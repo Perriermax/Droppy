@@ -459,6 +459,30 @@ struct BasketItemView: View {
                     Label("Open", systemImage: "arrow.up.forward.square")
                 }
                 
+                // Move To...
+                Menu {
+                    // Saved Destinations
+                    ForEach(DestinationManager.shared.destinations) { dest in
+                        Button {
+                            moveFiles(to: dest.url)
+                        } label: {
+                            Label(dest.name, systemImage: "externaldrive")
+                        }
+                    }
+                    
+                    if !DestinationManager.shared.destinations.isEmpty {
+                        Divider()
+                    }
+                    
+                    Button {
+                        chooseDestinationAndMove()
+                    } label: {
+                        Label("Choose Folder...", systemImage: "folder.badge.plus")
+                    }
+                } label: {
+                    Label("Move to...", systemImage: "arrow.right.doc.on.clipboard")
+                }
+                
                 // Open With submenu
                 let availableApps = item.getAvailableApplications()
                 if !availableApps.isEmpty {
@@ -591,6 +615,58 @@ struct BasketItemView: View {
     
     // MARK: - Actions
     
+    private func chooseDestinationAndMove() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Move Here"
+        panel.message = "Choose a destination to move the selected files."
+        
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                DestinationManager.shared.addDestination(url: url)
+                moveFiles(to: url)
+            }
+        }
+    }
+    
+    private func moveFiles(to destination: URL) {
+        let itemsToMove = state.selectedBasketItems.isEmpty ? [item] : state.basketItems.filter { state.selectedBasketItems.contains($0.id) }
+        
+        for item in itemsToMove {
+            do {
+                let destURL = destination.appendingPathComponent(item.url.lastPathComponent)
+                var finalDestURL = destURL
+                var counter = 1
+                while FileManager.default.fileExists(atPath: finalDestURL.path) {
+                    let ext = destURL.pathExtension
+                    let name = destURL.deletingPathExtension().lastPathComponent
+                    let newName = "\(name) \(counter)" + (ext.isEmpty ? "" : ".\(ext)")
+                    finalDestURL = destination.appendingPathComponent(newName)
+                    counter += 1
+                }
+                
+                try FileManager.default.moveItem(at: item.url, to: finalDestURL)
+                state.removeBasketItem(item)
+            } catch {
+               // Fallback copy+delete mechanism
+               do {
+                   try FileManager.default.copyItem(at: item.url, to: destination.appendingPathComponent(item.url.lastPathComponent))
+                   try FileManager.default.removeItem(at: item.url)
+                   state.removeBasketItem(item)
+               } catch {
+                   print("Failed to move file: \(error.localizedDescription)")
+                   let alert = NSAlert()
+                   alert.messageText = "Move Failed"
+                   alert.informativeText = "Could not move \(item.name): \(error.localizedDescription)"
+                   alert.alertStyle = .warning
+                   alert.runModal()
+               }
+            }
+        }
+    }
+
     private func copyToClipboard() {
         let itemsToCopy = state.selectedBasketItems.isEmpty
             ? [item]
