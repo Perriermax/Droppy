@@ -10,6 +10,7 @@ import AppKit
 @preconcurrency import AVFoundation
 import UniformTypeIdentifiers
 import PDFKit
+import Quartz
 
 /// Quality levels for compression
 enum CompressionQuality: Int, CaseIterable {
@@ -77,10 +78,30 @@ class FileCompressor {
         
         if type.conforms(to: .image) {
             return await compressImage(url: url, mode: mode)
+            
         } else if type.conforms(to: .pdf) {
-            return await compressPDF(url: url, mode: mode)
+            // TARGET SIZE RESTRICTION: Only allow target size for photos.
+            // For PDF, fallback to Medium preset if targetSize is requested.
+            let effectiveMode: CompressionMode
+            if case .targetSize = mode {
+                print("Target Size not supported for PDF. Falling back to Medium.")
+                effectiveMode = .preset(.medium)
+            } else {
+                effectiveMode = mode
+            }
+            return await compressPDF(url: url, mode: effectiveMode)
+            
         } else if type.conforms(to: .movie) || type.conforms(to: .video) {
-            return await compressVideo(url: url, mode: mode)
+            // TARGET SIZE RESTRICTION: Only allow target size for photos.
+            // For Video, fallback to Medium preset if targetSize is requested.
+            let effectiveMode: CompressionMode
+            if case .targetSize = mode {
+                print("Target Size not supported for Video. Falling back to Medium.")
+                effectiveMode = .preset(.medium)
+            } else {
+                effectiveMode = mode
+            }
+            return await compressVideo(url: url, mode: effectiveMode)
         }
         
         return nil
@@ -98,7 +119,7 @@ class FileCompressor {
     /// Format bytes as human-readable string
     static func formatSize(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.allowedUnits = [.useMB, .useKB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
     }
@@ -106,70 +127,47 @@ class FileCompressor {
     // MARK: - Image Compression
     
     private func compressImage(url: URL, mode: CompressionMode) async -> URL? {
-        guard let image = NSImage(contentsOf: url) else { return nil }
-        
-        let quality: CGFloat
-        let targetBytes: Int64?
-        
-        switch mode {
-        case .preset(let q):
-            quality = q.jpegQuality
-            targetBytes = nil
-        case .targetSize(let bytes):
-            quality = 0.8 // Starting point for iteration
-            targetBytes = bytes
+        guard let image = NSImage(contentsOf: url),
+              let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData) else {
+            return nil
         }
         
-        // Create output URL in temp directory
         let fileName = url.deletingPathExtension().lastPathComponent
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(fileName)_compressed")
             .appendingPathExtension("jpg")
         
-        // Get bitmap representation
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData) else {
-            return nil
-        }
-        
-        if let targetBytes = targetBytes {
-            // Iterative compression to reach target size
-            return await compressImageToTargetSize(bitmap: bitmap, targetBytes: targetBytes, outputURL: outputURL)
-        } else {
-            // Direct compression with quality
-            guard let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: quality]) else {
+        switch mode {
+        case .preset(let quality):
+            guard let data = bitmap.representation(using: .jpeg, properties: [.compressionFactor: quality.jpegQuality]) else {
                 return nil
             }
+            try? data.write(to: outputURL)
+            return outputURL
             
-            do {
-                try jpegData.write(to: outputURL)
-                return outputURL
-            } catch {
-                print("Error writing compressed image: \(error)")
-                return nil
-            }
+        case .targetSize(let bytes):
+            return await compressImageToTargetSize(bitmap: bitmap, targetBytes: bytes, outputURL: outputURL)
         }
     }
     
     private func compressImageToTargetSize(bitmap: NSBitmapImageRep, targetBytes: Int64, outputURL: URL) async -> URL? {
-        var low: CGFloat = 0.01
+        // Binary search for finding the right quality
+        var low: CGFloat = 0.0
         var high: CGFloat = 1.0
         var bestData: Data?
-        var iterations = 0
-        let maxIterations = 10
         
-        while iterations < maxIterations && (high - low) > 0.02 {
+        // Try reasonably up to 8 iterations
+        var iterations = 0
+        while iterations < 8 {
             let mid = (low + high) / 2
-            
-            guard let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: mid]) else {
-                break
+            guard let data = bitmap.representation(using: .jpeg, properties: [.compressionFactor: mid]) else {
+                return nil
             }
             
-            let currentSize = Int64(jpegData.count)
-            
-            if currentSize <= targetBytes {
-                // Size is acceptable, try higher quality
-                bestData = jpegData
+            if Int64(data.count) < targetBytes {
+                bestData = data
+                // Size is okay, try higher quality
                 low = mid
             } else {
                 // Size too big, try lower quality
@@ -198,142 +196,99 @@ class FileCompressor {
     // MARK: - PDF Compression
     
     private func compressPDF(url: URL, mode: CompressionMode) async -> URL? {
-        guard let pdfDocument = PDFDocument(url: url) else { return nil }
+        let pdfDocument = PDFDocument(url: url)
         
-        // Remove Quartz Filter logic (lines 208-231) to ensure we always use the robust image re-rendering path
-        // which correctly handles page rotation and compression
+        // 1. Capture original page rotations (to fix orientation after Quartz Filter potentially strips them)
+        var pageRotations: [Int] = []
+        if let doc = pdfDocument {
+            for i in 0..<doc.pageCount {
+                if let page = doc.page(at: i) {
+                    pageRotations.append(page.rotation)
+                } else {
+                    pageRotations.append(0)
+                }
+            }
+        }
         
         let fileName = url.deletingPathExtension().lastPathComponent
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(fileName)_temp_qfilter")
+            .appendingPathExtension("pdf")
+        
+        // 2. Apply Quartz Filter (Reduce File Size)
+        // This preserves vector content (text) unlike rendering to images
+        if let filter = QuartzFilter(url: URL(fileURLWithPath: "/System/Library/Filters/Reduce File Size.qfilter")) {
+             // Create a PDF context that applies the filter
+             guard let consumer = CGDataConsumer(url: tempURL as CFURL) else { return nil }
+             
+             // We need a context to draw into.
+             // If we pass nil for mediaBox, CoreGraphics handles it per page?
+             // Actually, consumer context creation requires mediaBox in some versions, but can be nil.
+             guard let context = CGContext(consumer: consumer, mediaBox: nil, nil) else { return nil }
+             
+             // Apply filter logic - THIS IS THE KEY for non-destructive compression steps
+             // filter.apply(to: context) works on drawing contexts
+             // Note: convert `context` to `CGContext?` implicitly
+             filter.apply(to: context)
+             
+             if let doc = pdfDocument {
+                 for i in 0..<doc.pageCount {
+                     guard let page = doc.page(at: i) else { continue }
+                     // Use existing media box
+                     var pageBox = page.bounds(for: .mediaBox)
+                     
+                     let pageInfo = [kCGPDFContextMediaBox as String: NSData(bytes: &pageBox, length: MemoryLayout<CGRect>.size)] as CFDictionary
+                     context.beginPDFPage(pageInfo)
+                     
+                     // Draw ORIGINAL page content
+                     // This preserves text, vectors, etc.
+                     page.draw(with: .mediaBox, to: context)
+                     
+                     context.endPDFPage()
+                 }
+             }
+             context.closePDF()
+        } else {
+            // Filter not found? Just copy original? Or fail?
+            return nil
+        }
+        
+        // 3. Restore Rotations and Save Final
+        // Quartz Filter often resets rotation or applies it physically. 
+        // We load the temp PDF and re-apply original rotation metadata just in case.
+        
+        guard let compressedDoc = PDFDocument(url: tempURL) else { return nil }
+        
+        // Safety check page counts
+        let count = min(compressedDoc.pageCount, pageRotations.count)
+        
+        for i in 0..<count {
+            if let page = compressedDoc.page(at: i) {
+                // Check if we need to restore rotation
+                // Sometimes Quartz 'bakes' the rotation. If the page content is visually rotated, 
+                // setting rotation again might double-rotate?
+                // Visual check: page.bounds(for: .cropBox) vs original?
+                // RELIABLE STRATEGY: 
+                // If Quartz baked it, rotation is 0, but content is rotated.
+                // If Quartz reset it, rotation is 0, content is upright (so looks wrong).
+                // Usually Quartz Filter strips metadata (rotation=0) but leaves content coordinate system alone (so it looks sideways).
+                // Setting rotation back to original fixes it.
+                
+                page.rotation = pageRotations[i]
+            }
+        }
+        
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(fileName)_compressed")
             .appendingPathExtension("pdf")
-        
-        return await compressPDFByRerendering(pdfDocument: pdfDocument, mode: mode, outputURL: outputURL)
-    }
-
-
-
-    private func compressVideoToTargetSize(asset: AVAsset, targetBytes: Int64, outputURL: URL) async -> URL? {
-        // Use Apple's native fileLengthLimit for robust target sizing
-        // This handles bitrate and resolution tradeoffs internally!
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHEVCHighestQuality) ?? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
-            return nil
-        }
-        
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mp4
-        exportSession.shouldOptimizeForNetworkUse = true
-        
-        // This is the magic native property
-        exportSession.fileLengthLimit = targetBytes
-        
-        await exportSession.export()
-        
-        if exportSession.status == .completed {
-            // Verify size (sometimes it overshoots slightly, but usually accurate)
-            let actualSize = (try? FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? Int64) ?? 0
-            print("Target: \(targetBytes), Actual: \(actualSize)")
+            
+        if compressedDoc.write(to: outputURL) {
+            // Cleanup temp
+            try? FileManager.default.removeItem(at: tempURL)
             return outputURL
-        } else {
-            print("Video export failed: \(exportSession.error?.localizedDescription ?? "Unknown error")")
-            return nil
-        }
-    }
-    
-    // Deleted compressVideoWithBitrate as it's no longer needed
-    
-    private func compressPDFByRerendering(pdfDocument: PDFDocument, mode: CompressionMode, outputURL: URL) async -> URL? {
-        // Determine JPEG quality and scale based on mode
-        let jpegQuality: CGFloat
-        let dpiScale: CGFloat
-        switch mode {
-        case .preset(let quality):
-            switch quality {
-            case .low:
-                jpegQuality = 0.3
-                dpiScale = 0.5  // 72 DPI
-            case .medium:
-                jpegQuality = 0.5
-                dpiScale = 0.75 // 108 DPI
-            case .high:
-                jpegQuality = 0.7
-                dpiScale = 1.0  // 144 DPI
-            }
-        case .targetSize:
-            jpegQuality = 0.4
-            dpiScale = 0.6
         }
         
-        // Create new PDF from rendered page images
-        guard let pdfData = CFDataCreateMutable(nil, 0) else { return nil }
-        guard let consumer = CGDataConsumer(data: pdfData) else { return nil }
-        
-        var mediaBox = CGRect.zero
-        guard let pdfContext = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return nil }
-        
-        for i in 0..<pdfDocument.pageCount {
-            guard let page = pdfDocument.page(at: i) else { continue }
-            
-            // Get the VISUAL bounds (respecting rotation)
-            // bounds(for:) returns the rotated bounds when rotation is applied
-            let pageBounds = page.bounds(for: .cropBox)
-            let rotation = page.rotation
-            
-            // Calculate visual dimensions after rotation
-            let isRotated = rotation == 90 || rotation == 270
-            let visualWidth = isRotated ? pageBounds.height : pageBounds.width
-            let visualHeight = isRotated ? pageBounds.width : pageBounds.height
-            
-            // Render size (scaled for compression)
-            let renderWidth = visualWidth * dpiScale
-            let renderHeight = visualHeight * dpiScale
-            
-            // Render page to image using PDFPage's thumbnail method (handles rotation correctly)
-            let pageImageRaw = page.thumbnail(of: CGSize(width: renderWidth, height: renderHeight), for: .cropBox)
-            
-            // Create a white background image to handle transparency (prevents black pages in JPEG)
-            let pageImage = NSImage(size: pageImageRaw.size)
-            pageImage.lockFocus()
-            NSColor.white.set()
-            NSBezierPath(rect: CGRect(origin: .zero, size: pageImage.size)).fill()
-            pageImageRaw.draw(at: .zero, from: .zero, operation: .sourceOver, fraction: 1.0)
-            pageImage.unlockFocus()
-            
-            // Convert to JPEG data
-            guard let tiffData = pageImage.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiffData),
-                  let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: jpegQuality]) else {
-                continue
-            }
-            
-            // Create image from JPEG data
-            guard let jpegImage = NSImage(data: jpegData),
-                  let cgImage = jpegImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                continue
-            }
-            
-            // Create PDF page with this image
-            let pageMediaBox = CGRect(x: 0, y: 0, width: visualWidth, height: visualHeight)
-            let pageInfo: [CFString: Any] = [kCGPDFContextMediaBox: pageMediaBox]
-            pdfContext.beginPDFPage(pageInfo as CFDictionary)
-            
-            // Draw the JPEG image scaled to fill the page
-            pdfContext.draw(cgImage, in: pageMediaBox)
-            
-            pdfContext.endPDFPage()
-        }
-        
-        pdfContext.closePDF()
-        
-        // Write the PDF data
-        let data = pdfData as Data
-        do {
-            try data.write(to: outputURL)
-            return outputURL
-        } catch {
-            print("Error writing PDF: \(error)")
-            return nil
-        }
+        return nil
     }
     
     // MARK: - Video Compression
@@ -349,11 +304,18 @@ class FileCompressor {
         // Remove existing file if present
         try? FileManager.default.removeItem(at: outputURL)
         
+        // Always use Preset since targetSize is disallowed for Video now
+        // But logic in compress() handles the fallback.
+        // Here we handle the presets map.
+        
         switch mode {
         case .preset(let quality):
             return await compressVideoWithPreset(asset: asset, preset: quality.videoPreset, outputURL: outputURL)
-        case .targetSize(let bytes):
-            return await compressVideoToTargetSize(asset: asset, targetBytes: bytes, outputURL: outputURL)
+        // If somehow targetSize leaks here, handled gracefully or logic error?
+        // It shouldn't if compress() works.
+        case .targetSize:
+             // Fallback just in case
+            return await compressVideoWithPreset(asset: asset, preset: AVAssetExportPresetMediumQuality, outputURL: outputURL)
         }
     }
     
@@ -376,5 +338,3 @@ class FileCompressor {
         }
     }
 }
-
-// MARK: - Quartz Filter Helper

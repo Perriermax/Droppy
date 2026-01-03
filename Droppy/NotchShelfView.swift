@@ -830,7 +830,7 @@ struct NotchItemView: View {
             // Determine compression mode from settings
             let mode: CompressionMode
             
-            if compressionMode == 3 {
+            if compressionMode == 3 && item.fileType?.conforms(to: .image) == true {
                 // Ask for target size
                 guard let currentSize = FileCompressor.fileSize(url: item.url) else {
                     await MainActor.run { isCompressing = false }
