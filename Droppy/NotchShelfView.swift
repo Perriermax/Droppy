@@ -562,15 +562,21 @@ struct NotchItemView: View {
     @State private var isShakeAnimating = false
     
     private func chooseDestinationAndMove() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Move Here"
-        panel.message = "Choose a destination to move the selected files."
-        
-        panel.begin { response in
-            if response == .OK, let url = panel.url {
+        // Dispatch to main async to allow the menu to close and UI to settle
+        DispatchQueue.main.async {
+            // Ensure the app is active so the panel appears on top
+            NSApp.activate(ignoringOtherApps: true)
+            
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.prompt = "Move Here"
+            panel.message = "Choose a destination to move the selected files."
+            
+            // Use runModal for a simpler blocking flow in this context, 
+            // or begin with completion. runModal is often more reliable for "popup" utilities.
+            if panel.runModal() == .OK, let url = panel.url {
                 DestinationManager.shared.addDestination(url: url)
                 moveFiles(to: url)
             }

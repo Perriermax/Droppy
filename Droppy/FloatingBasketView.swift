@@ -616,17 +616,19 @@ struct BasketItemView: View {
     // MARK: - Actions
     
     private func chooseDestinationAndMove() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Move Here"
-        panel.message = "Choose a destination to move the selected files."
-        
-        panel.begin { response in
-            if response == .OK, let url = panel.url {
-                DestinationManager.shared.addDestination(url: url)
-                moveFiles(to: url)
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.prompt = "Move Here"
+            panel.message = "Choose a destination to move the selected files."
+            
+            if panel.runModal() == .OK, let url = panel.url {
+                 DestinationManager.shared.addDestination(url: url)
+                 moveFiles(to: url)
             }
         }
     }
