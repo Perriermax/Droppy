@@ -79,7 +79,7 @@ sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $VERSION;/" Droppy.xcode
 echo "-> Building App (Release)..."
 APP_BUILD_PATH="$MAIN_REPO/build"
 rm -rf "$APP_BUILD_PATH"
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme Droppy -configuration Release -derivedDataPath "$APP_BUILD_PATH" -quiet
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme Droppy -configuration Release -derivedDataPath "$APP_BUILD_PATH" -destination 'generic/platform=macOS' ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO -quiet
 if [ $? -ne 0 ]; then
     echo "❌ Error: Build failed."
     exit 1
