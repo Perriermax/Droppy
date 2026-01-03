@@ -235,25 +235,20 @@ class FileCompressor {
     }
     
     private func compressPDFByRerendering(pdfDocument: PDFDocument, mode: CompressionMode, outputURL: URL) async -> URL? {
-        // Determine scale and JPEG quality based on mode
+        // Determine scale factor based on mode
         let scale: CGFloat
-        let jpegQuality: CGFloat
         switch mode {
         case .preset(let quality):
             switch quality {
             case .low: 
                 scale = 0.5
-                jpegQuality = 0.3
             case .medium: 
                 scale = 0.72
-                jpegQuality = 0.5
             case .high: 
                 scale = 0.85
-                jpegQuality = 0.7
             }
         case .targetSize:
             scale = 0.6
-            jpegQuality = 0.4 // Lower quality for target size mode
         }
         
         // Create PDF context with correct page sizes
@@ -266,10 +261,9 @@ class FileCompressor {
         for i in 0..<pdfDocument.pageCount {
             guard let page = pdfDocument.page(at: i) else { continue }
             let bounds = page.bounds(for: .mediaBox)
-            let rotation = page.rotation
             
             // Calculate scaled bounds, preserving orientation
-            var scaledBounds = CGRect(
+            let scaledBounds = CGRect(
                 x: 0, y: 0,
                 width: bounds.width * scale,
                 height: bounds.height * scale
@@ -375,7 +369,7 @@ class FileCompressor {
         // Get video properties
         let naturalSize = try? await videoTrack.load(.naturalSize)
         let transform = try? await videoTrack.load(.preferredTransform)
-        let nominalFrameRate = try? await videoTrack.load(.nominalFrameRate)
+        _ = try? await videoTrack.load(.nominalFrameRate) // Load for side effects
         
         guard let naturalSize = naturalSize else { return nil }
         
