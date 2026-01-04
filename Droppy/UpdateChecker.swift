@@ -65,30 +65,24 @@ class UpdateChecker: ObservableObject {
             // Parse version (remove 'v' prefix if present)
             let remoteVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
             
-            // Compare versions
-            if isNewerVersion(remoteVersion, than: currentVersion) {
-                latestVersion = remoteVersion
-                releaseNotes = json["body"] as? String
-                
-                // Find DMG download URL from assets
-                if let assets = json["assets"] as? [[String: Any]] {
-                    for asset in assets {
-                        if let name = asset["name"] as? String,
-                           name.lowercased().hasSuffix(".dmg"),
-                           let urlString = asset["browser_download_url"] as? String,
-                           let assetURL = URL(string: urlString) {
-                            downloadURL = assetURL
-                            break
-                        }
+            latestVersion = remoteVersion
+            releaseNotes = json["body"] as? String
+            
+            // Find DMG download URL from assets
+            if let assets = json["assets"] as? [[String: Any]] {
+                for asset in assets {
+                    if let name = asset["name"] as? String,
+                       name.lowercased().hasSuffix(".dmg"),
+                       let urlString = asset["browser_download_url"] as? String,
+                       let assetURL = URL(string: urlString) {
+                        downloadURL = assetURL
+                        break
                     }
                 }
-                
-                updateAvailable = true
-                print("UpdateChecker: Update available! \(currentVersion) → \(remoteVersion)")
-            } else {
-                updateAvailable = false
-                print("UpdateChecker: App is up to date (\(currentVersion))")
             }
+            
+            updateAvailable = isNewerVersion(remoteVersion, than: currentVersion)
+            print("UpdateChecker: Check complete. Update available: \(updateAvailable) (\(currentVersion) → \(remoteVersion))")
             
         } catch {
             print("UpdateChecker: Error checking for updates: \(error)")

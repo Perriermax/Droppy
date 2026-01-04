@@ -308,10 +308,15 @@ struct ClipboardManagerView: View {
             
             if manager.history.isEmpty {
                 Spacer()
-                Text("Clipboard is empty")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                VStack(spacing: 12) {
+                    Image(systemName: "scissors")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                    Text("Clipboard is empty")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
                 Spacer()
             } else {
                 ScrollViewReader { proxy in
@@ -639,6 +644,7 @@ struct ClipboardManagerView: View {
                         .font(.system(size: 40))
                         .foregroundStyle(.secondary.opacity(0.5))
                     Text("Select an item to preview")
+                        .font(.system(size: 14, weight: .medium)) // Matched font weight
                         .foregroundStyle(.secondary)
                 }
             }

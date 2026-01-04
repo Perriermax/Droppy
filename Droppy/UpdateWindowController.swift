@@ -15,7 +15,7 @@ class UpdateWindowController: NSWindowController {
         // Create the window
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 500, height: 450),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
