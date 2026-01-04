@@ -22,7 +22,7 @@ final class DragMonitor: ObservableObject {
     /// Whether a jiggle gesture was detected during drag (triggers basket)
     @Published private(set) var didJiggle = false
     
-    private var dragCheckTimer: Timer?
+    private var isMonitoring = false
     private var dragStartChangeCount: Int = 0
     private var dragActive = false
     
@@ -41,22 +41,24 @@ final class DragMonitor: ObservableObject {
     
     /// Starts monitoring for drag events
     func startMonitoring() {
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in
-                self?.startMonitoring()
-            }
-            return
-        }
-        guard dragCheckTimer == nil else { return }
-        dragCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.checkForActiveDrag()
-        }
+        guard !isMonitoring else { return }
+        isMonitoring = true
+        monitorLoop()
     }
     
     /// Stops monitoring for drag events
     func stopMonitoring() {
-        dragCheckTimer?.invalidate()
-        dragCheckTimer = nil
+        isMonitoring = false
+    }
+    
+    private func monitorLoop() {
+        guard isMonitoring else { return }
+        
+        checkForActiveDrag()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.monitorLoop()
+        }
     }
     
     /// Resets jiggle state (called after basket is shown or drag ends)

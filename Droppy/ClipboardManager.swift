@@ -148,7 +148,7 @@ class ClipboardManager: ObservableObject {
     }
     
     private var lastChangeCount: Int
-    private var timer: Timer?
+    private var isMonitoring = false
     
     private var persistenceURL: URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -198,24 +198,26 @@ class ClipboardManager: ObservableObject {
     }
     
     func startMonitoring() {
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in
-                self?.startMonitoring()
-            }
-            return
-        }
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            autoreleasepool {
-                self?.checkForChanges()
-                self?.checkPermission()
-            }
-        }
+        guard !isMonitoring else { return }
+        isMonitoring = true
+        monitorLoop()
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        isMonitoring = false
+    }
+    
+    private func monitorLoop() {
+        guard isMonitoring else { return }
+        
+        autoreleasepool {
+            checkForChanges()
+            checkPermission()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.monitorLoop()
+        }
     }
     
     func enforceHistoryLimit() {

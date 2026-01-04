@@ -20,7 +20,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     /// Timer for slow environmental checks (fullscreen)
-    private var fullscreenTimer: Timer?
+    private var isFullscreenMonitoring = false
     
     /// Monitor for mouse movement when window is not key or mouse is outside
     private var globalMouseMonitor: Any?
@@ -121,18 +121,9 @@ final class NotchWindowController: NSObject, ObservableObject {
         // Replaces the polling interactionTimer
         setupStateObservation()
         
-        // Timer for fullscreen/visibility checks (every 1s) - Slower, heavier
-        fullscreenTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            guard let window = self.notchWindow, window.isValid else {
-                timer.invalidate()
-                return
-            }
-            self.checkFullscreenState()
-        }
+        // Start fullscreen loop
+        isFullscreenMonitoring = true
+        fullscreenMonitorLoop()
         
         // Global monitor catches mouse movement when Droppy is not frontmost
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
@@ -143,6 +134,18 @@ final class NotchWindowController: NSObject, ObservableObject {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
             self?.handleMouseEvent(event)
             return event
+        }
+    }
+    
+    private func fullscreenMonitorLoop() {
+        guard isFullscreenMonitoring else { return }
+        
+        if let window = self.notchWindow, window.isValid {
+            self.checkFullscreenState()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.fullscreenMonitorLoop()
         }
     }
     
@@ -168,8 +171,7 @@ final class NotchWindowController: NSObject, ObservableObject {
     private func stopMonitors() {
         cancellables.removeAll()
         
-        fullscreenTimer?.invalidate()
-        fullscreenTimer = nil
+        isFullscreenMonitoring = false
         
         if let monitor = globalMouseMonitor {
             NSEvent.removeMonitor(monitor)
