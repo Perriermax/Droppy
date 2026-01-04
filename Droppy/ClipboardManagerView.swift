@@ -292,7 +292,7 @@ struct ClipboardManagerView: View {
                         dashPhase = 6
                     }
                 }
-                .onChange(of: isSearchVisible) { visible in
+                .onChange(of: isSearchVisible) { _, visible in
                    if visible {
                        dashPhase = 0
                        withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
@@ -731,7 +731,7 @@ struct ClipboardItemRow: View {
                             dashPhase = 8 // Matches dash: [4, 4] -> total 8
                         }
                     }
-                    .onChange(of: isRenaming) { renaming in
+                    .onChange(of: isRenaming) { _, renaming in
                         if renaming {
                             dashPhase = 0
                             withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
@@ -952,7 +952,7 @@ struct ClipboardPreviewView: View {
                     )
             )
             .animation(.easeInOut(duration: 0.3), value: isEditing)
-            .onChange(of: isEditing) { editing in
+            .onChange(of: isEditing) { _, editing in
                 if editing {
                     dashPhase = 0
                     withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
