@@ -144,7 +144,9 @@ Release v3.0.1
 
 Bug Fixes:
 - Fixed critical objc_release crash in NotchWindowController timer callbacks
-- Improved memory safety in mouse event handling to prevent crashes during window deallocation
+- Fixed objc_release crash in DragMonitor checkForActiveDrag method
+- Improved memory safety by removing problematic autoreleasepool wrappers
+- Fixed visual padding consistency between entries list and action buttons
 <!-- CHANGELOG_END -->
 
 ---
