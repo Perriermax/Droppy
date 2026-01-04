@@ -397,7 +397,7 @@ class NotchDragContainer: NSView {
             
             // Height calculation from NotchShelfView (approx)
              let rowCount = (Double(DroppyState.shared.items.count) / 5.0).rounded(.up)
-             let expandedHeight = max(1, rowCount) * 110 + 40
+             let expandedHeight = max(1, rowCount) * 110 + 54
              
             // Y is from top (bounds.height) down to (bounds.height - expandedHeight)
             let yRange = (bounds.height - expandedHeight)...bounds.height

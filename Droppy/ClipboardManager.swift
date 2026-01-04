@@ -402,11 +402,10 @@ class ClipboardManager: ObservableObject {
     
     func toggleFavorite(_ item: ClipboardItem) {
         if let index = history.firstIndex(where: { $0.id == item.id }) {
-            history[index].isFavorite.toggle()
-            // Move favorites to top? Or just mark them. 
-            // User requirement: "stick to the top". 
-            // Let's re-sort.
-            sortHistory()
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                history[index].isFavorite.toggle()
+                sortHistory()
+            }
         }
     }
     
@@ -455,3 +454,4 @@ class ClipboardManager: ObservableObject {
         excludedApps.contains(bundleID)
     }
 }
+

@@ -35,9 +35,9 @@ struct KeyShortcutRecorder: View {
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
                 .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(isRecording ? Color.blue : Color.gray.opacity(0.3), lineWidth: isRecording ? 2 : 1)
                 )
             

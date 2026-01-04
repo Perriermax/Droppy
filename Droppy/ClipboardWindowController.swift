@@ -32,7 +32,7 @@ class ClipboardWindowController: NSObject, NSWindowDelegate {
         // Borderless, transparent window, but RESIZABLE for manual resizing
         // Removed .nonactivatingPanel to allow taking focus (Fixes "Enter" to paste)
         window = ClipboardPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 640),
             styleMask: [.borderless, .fullSizeContentView, .resizable], 
             backing: .buffered,
             defer: false
@@ -68,9 +68,9 @@ class ClipboardWindowController: NSObject, NSWindowDelegate {
             let screenRect = screen.visibleFrame
             let newRect = NSRect(
                 x: screenRect.midX - 360, 
-                y: screenRect.midY - 240, 
+                y: screenRect.midY - 320, 
                 width: 720, 
-                height: 480
+                height: 640
             )
             DispatchQueue.main.async {
                 self.window.setFrame(newRect, display: true, animate: true)
@@ -183,6 +183,11 @@ class ClipboardWindowController: NSObject, NSWindowDelegate {
         // 2. Local Monitor (Clicks sent to OUR app)
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, self.window.isVisible else { return event }
+            
+            // Don't close if click is on the OCR window
+            if let ocrWindow = OCRWindowController.shared.window, event.window == ocrWindow {
+                return event
+            }
             
             if event.window != self.window {
                 print("🖱️ Droppy: Local Click Outside (Window: \(String(describing: event.window))) -> Closing")

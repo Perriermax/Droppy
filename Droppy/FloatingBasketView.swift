@@ -36,11 +36,11 @@ struct FloatingBasketView: View {
     
     private var currentHeight: CGFloat {
         if state.basketItems.isEmpty {
-            return 120
+            return 130
         } else {
             let rowCount = ceil(Double(state.basketItems.count) / Double(columnsPerRow))
-            // 96pt per item height + 8pt spacing + 50pt header area
-            return max(1, rowCount) * (96 + itemSpacing) + 58
+            // 96pt per item height + 8pt spacing + header area
+            return max(1, rowCount) * (96 + itemSpacing) + 72
         }
     }
     
@@ -252,10 +252,10 @@ struct FloatingBasketView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(Color.blue.opacity(isShelfButtonHovering ? 1.0 : 0.8))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
                     )
                     .scaleEffect(isShelfButtonHovering ? 1.02 : 1.0)
                 }
@@ -275,10 +275,10 @@ struct FloatingBasketView: View {
                         .foregroundStyle(isCloseButtonHovering ? .primary : .secondary)
                         .frame(width: 32, height: 32)
                         .background(Color.white.opacity(isCloseButtonHovering ? 0.2 : 0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
                         )
                         .scaleEffect(isCloseButtonHovering ? 1.05 : 1.0)
                 }
@@ -290,7 +290,7 @@ struct FloatingBasketView: View {
                 }
             }
             .padding(.horizontal, horizontalPadding)
-            .padding(.top, 14)
+            .padding(.top, 22)
 
             .background(WindowDragHandle()) // Allow dragging by header
             .background(
@@ -369,6 +369,7 @@ struct BasketItemView: View {
     let state: DroppyState
     @Binding var renamingItemId: UUID?
     let onRemove: () -> Void
+    @AppStorage("useTransparentBackground") private var useTransparentBackground = false
     
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
@@ -435,8 +436,8 @@ struct BasketItemView: View {
             .overlay(alignment: .center) {
                 if isShakeAnimating {
                     ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
                             .frame(width: 44, height: 44)
                             .shadow(radius: 4)
                         Image(systemName: "checkmark.shield.fill")
@@ -945,7 +946,7 @@ private struct BasketItemContent: View {
                 if isHovering && !isPoofing && renamingItemId != item.id {
                     Button(action: onRemove) {
                         ZStack {
-                            Circle()
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(Color.red.opacity(0.9))
                                 .frame(width: 20, height: 20)
                             Image(systemName: "xmark")
@@ -982,8 +983,8 @@ private struct BasketItemContent: View {
                     .padding(.horizontal, 4)
                     .background(
                         isSelected ?
-                        Capsule().fill(Color.blue) :
-                        Capsule().fill(Color.clear)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.blue) :
+                        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.clear)
                     )
             }
         }

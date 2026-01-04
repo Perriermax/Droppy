@@ -16,6 +16,7 @@ struct OCRResultView: View {
     @State private var isBgHovering: Bool = false
     @State private var isCopyHovering = false
     @State private var isCloseHovering = false
+    @State private var showCopiedFeedback = false
     
     private let cornerRadius: CGFloat = 24
     
@@ -58,20 +59,31 @@ struct OCRResultView: View {
                         let pasteboard = NSPasteboard.general
                         pasteboard.clearContents()
                         pasteboard.setString(text, forType: .string)
+                        
+                        // Show feedback and close
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            showCopiedFeedback = true
+                        }
+                        
+                        // Close window after brief feedback
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            onClose()
+                        }
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
+                            Image(systemName: showCopiedFeedback ? "checkmark" : "doc.on.doc")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("Copy")
+                            Text(showCopiedFeedback ? "Copied!" : "Copy")
                                 .font(.system(size: 11, weight: .semibold))
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.blue.opacity(isCopyHovering ? 1.0 : 0.8))
-                        .clipShape(Capsule())
+                        .background(showCopiedFeedback ? Color.green.opacity(0.9) : Color.blue.opacity(isCopyHovering ? 1.0 : 0.8))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .scaleEffect(isCopyHovering ? 1.05 : 1.0)
                         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isCopyHovering)
+                        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: showCopiedFeedback)
                     }
                     .buttonStyle(.plain)
                     .onHover { mirroring in
@@ -87,7 +99,7 @@ struct OCRResultView: View {
                             .foregroundColor(.white.opacity(isCloseHovering ? 1.0 : 0.6))
                             .padding(8)
                             .background(Color.white.opacity(isCloseHovering ? 0.25 : 0.1))
-                            .clipShape(Circle())
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .scaleEffect(isCloseHovering ? 1.1 : 1.0)
                             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isCloseHovering)
                     }

@@ -11,7 +11,7 @@ import SwiftUI
 final class OCRWindowController: NSObject {
     static let shared = OCRWindowController()
     
-    private var window: NSPanel?
+    private(set) var window: NSPanel?
     
     private override init() {
         super.init()

@@ -35,11 +35,11 @@ final class FloatingBasketWindowController: NSObject {
     
     /// Called by DragMonitor when jiggle is detected
     func onJiggleDetected() {
-        // Only move if visible AND not currently animating (show/hide) to prevent crash
+        // Only move if visible AND not currently animating (show/hide)
         if let panel = basketWindow, panel.isVisible, !isShowingOrHiding {
-            // If already visible, move it to new location
             moveBasketToMouse()
         } else if !isShowingOrHiding {
+            // Either basketWindow is nil or it's hidden - show it
             showBasket()
         }
     }
@@ -86,16 +86,26 @@ final class FloatingBasketWindowController: NSObject {
         if deltaX < 1.0 && deltaY < 1.0 { return }
         
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.setFrame(newFrame, display: true)
+            context.duration = 0.4 // Slower for "woosh"
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(newFrame, display: true)
         }, completionHandler: nil)
+        
+        panel.orderFrontRegardless()
     }
     
     /// Shows the basket near the current mouse location
     func showBasket() {
-        guard basketWindow == nil, !isShowingOrHiding else { return }
+        guard !isShowingOrHiding else { return }
         
+        // Defensive check: reclaim orphan window OR reuse existing hidden window
+        if let panel = basketWindow ?? NSApp.windows.first(where: { $0 is BasketPanel }) as? NSPanel {
+            basketWindow = panel
+            panel.animator().alphaValue = 1.0 // Ensure visible
+            moveBasketToMouse()
+            return
+        }
+
         isShowingOrHiding = true
         
         let mouseLocation = NSEvent.mouseLocation
@@ -131,8 +141,9 @@ final class FloatingBasketWindowController: NSObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Position just above Clipboard Manager (.popUpMenu = 101)
+        panel.level = NSWindow.Level(Int(NSWindow.Level.popUpMenu.rawValue) + 1)
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
@@ -173,7 +184,7 @@ final class FloatingBasketWindowController: NSObject {
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.alphaValue = 1.0
+            panel.animator().alphaValue = 1.0
         }, completionHandler: nil)
         
         basketWindow = panel
@@ -193,7 +204,7 @@ final class FloatingBasketWindowController: NSObject {
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.alphaValue = 0
+            panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             panel.orderOut(nil)
             self?.basketWindow = nil

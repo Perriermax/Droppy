@@ -18,7 +18,7 @@ struct LiquidGlassStyle: ViewModifier {
         self.radius = radius
         self.depth = depth
         self.isConcave = isConcave
-        self.shape = AnyShape(RoundedRectangle(cornerRadius: radius))
+        self.shape = AnyShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
     
     init<S: Shape>(shape: S, depth: Double = 1.0, isConcave: Bool = false) {
@@ -112,10 +112,10 @@ struct LiquidButton: View {
             .scaleEffect(isPressed ? 0.96 : (isHovering ? 1.02 : 1.0))
             // Inner Glow (Subsurface scattering)
             .overlay(
-                Capsule()
+                RoundedRectangle(cornerRadius: 99, style: .continuous)
                     .stroke(.white.opacity(isHovering ? 0.5 : 0.0), lineWidth: 2)
                     .blur(radius: 4)
-                    .mask(Capsule())
+                    .mask(RoundedRectangle(cornerRadius: 99, style: .continuous))
             )
         }
         .buttonStyle(.plain)
@@ -156,7 +156,7 @@ struct LiquidTextField: View {
         .liquidGlass(radius: 20, depth: 0.8, isConcave: true)
         .overlay(
             // The "Focus Ring" is now a soft glow, not a sharp line
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Color.accentColor.opacity(isFocused ? 0.5 : 0), lineWidth: 1.5)
                 .shadow(color: Color.accentColor.opacity(isFocused ? 0.4 : 0), radius: 8)
         )

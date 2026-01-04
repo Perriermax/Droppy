@@ -40,7 +40,7 @@ struct NotchShelfView: View {
     private let expandedWidth: CGFloat = 450
     private var currentExpandedHeight: CGFloat {
         let rowCount = (Double(state.items.count) / 5.0).rounded(.up)
-        return max(1, rowCount) * 110 + 40 // 110 per row + 40 header
+        return max(1, rowCount) * 110 + 54 // 110 per row + 54 header
     }
     
     /// Helper to check if current screen is built-in (MacBook display)
@@ -246,15 +246,14 @@ struct NotchShelfView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(indicatorBackground)
-        .background(indicatorBackground)
         .offset(y: notchHeight + 50)
     }
     
     private var indicatorBackground: some View {
-        Capsule()
-            .fill(.ultraThinMaterial)
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
             .overlay(
-                Capsule()
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(Color.white.opacity(0.2), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
@@ -286,7 +285,7 @@ struct NotchShelfView: View {
                     .padding(.trailing, 16)
                 }
             }
-            .frame(height: 40)
+            .frame(height: 54)
             .frame(width: expandedWidth)
             .contentShape(Rectangle()) // Make header clickable to deselect if needed, or just let it pass
             .onTapGesture {
@@ -296,10 +295,10 @@ struct NotchShelfView: View {
             // Grid Items
             if state.items.isEmpty {
                 emptyShelfContent
-                    .frame(height: currentExpandedHeight - 40)
+                    .frame(height: currentExpandedHeight - 54)
             } else {
                 itemsGridView
-                    .frame(height: currentExpandedHeight - 40)
+                    .frame(height: currentExpandedHeight - 54)
             }
         }
     }
@@ -358,7 +357,7 @@ struct NotchShelfView: View {
                 
                 VStack(spacing: 12) {
                     ForEach(Array(chunkedItems.enumerated()), id: \.offset) { index, rowItems in
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             // Center items: add spacer if row is not full?
                             // Actually, plain HStack with spacing centers by default if not strictly aligned leading
                             // But we want "always center".
@@ -379,11 +378,10 @@ struct NotchShelfView: View {
                         .frame(maxWidth: .infinity) // Ensures HStack takes full width to center content
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 10)
-                .padding(.bottom, 20)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
             }
-            .frame(minHeight: currentExpandedHeight - 40) // Ensure ZStack fills at least the visible area
         }
         .contentShape(Rectangle())
         // Removed .onTapGesture from here to prevent swallowing touches on children
@@ -528,7 +526,7 @@ extension NotchShelfView {
                     )
                 )
         )
-        .padding(EdgeInsets(top: 0, leading: 20, bottom: 20, trailing: 20))
+        .padding(EdgeInsets(top: 10, leading: 20, bottom: 20, trailing: 20))
         .onAppear {
             withAnimation(.linear(duration: 25).repeatForever(autoreverses: false)) {
                 dropZoneDashPhase -= 280 // Multiple of 14 (6+8) for smooth loop
@@ -545,6 +543,7 @@ struct NotchItemView: View {
     let state: DroppyState
     @Binding var renamingItemId: UUID?
     let onRemove: () -> Void
+    @AppStorage("useTransparentBackground") private var useTransparentBackground = false
     
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
@@ -687,8 +686,8 @@ struct NotchItemView: View {
             .overlay(alignment: .center) {
                 if isShakeAnimating {
                     ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
                             .frame(width: 44, height: 44)
                             .shadow(radius: 4)
                         Image(systemName: "checkmark.shield.fill")
@@ -1070,9 +1069,9 @@ struct NotchControlButton: View {
                 .foregroundStyle(isHovering ? .primary : .secondary)
                 .frame(width: 32, height: 32)
                 .background(Color.white.opacity(isHovering ? 0.2 : 0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 )
                 .scaleEffect(isHovering ? 1.05 : 1.0)
@@ -1155,7 +1154,7 @@ private struct NotchItemContent: View {
                 if isHovering && !isPoofing && renamingItemId != item.id {
                     Button(action: onRemove) {
                         ZStack {
-                            Circle()
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(Color.red.opacity(0.9))
                                 .frame(width: 20, height: 20)
                             Image(systemName: "xmark")
@@ -1192,8 +1191,8 @@ private struct NotchItemContent: View {
                     .padding(.horizontal, 4)
                     .background(
                         isSelected ?
-                        Capsule().fill(Color.blue) :
-                        Capsule().fill(Color.clear)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.blue) :
+                        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.clear)
                     )
             }
         }
@@ -1325,3 +1324,4 @@ private struct AutoSelectTextField: NSViewRepresentable {
         }
     }
 }
+

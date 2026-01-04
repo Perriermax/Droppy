@@ -14,7 +14,7 @@ struct TargetSizeDialogView: View {
     let fileName: String
     let onCompress: (Int64) -> Void
     let onCancel: () -> Void
-    
+    @AppStorage("useTransparentBackground") private var useTransparentBackground = false
     @State private var targetSizeMB: String = ""
     @State private var dashPhase: CGFloat = 0
     @State private var hoverLocation: CGPoint = .zero
@@ -29,7 +29,13 @@ struct TargetSizeDialogView: View {
         ZStack {
             // Background with hexagon effect
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.black)
+                .fill(useTransparentBackground ? Color.clear : Color.black)
+                .background {
+                    if useTransparentBackground {
+                        Color.clear
+                            .liquidGlass(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    }
+                }
                 .overlay {
                     HexagonDotsEffect(
                         mouseLocation: hoverLocation,
@@ -87,7 +93,7 @@ struct TargetSizeDialogView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 
                 // Target size input - using same style as rename text field
                 VStack(alignment: .leading, spacing: 8) {
@@ -140,7 +146,7 @@ struct TargetSizeDialogView: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 10)
                             .background(Color.white.opacity(isCancelButtonHovering ? 0.25 : 0.1))
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .scaleEffect(isCancelButtonHovering ? 1.05 : 1.0)
                             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isCancelButtonHovering)
                     }
@@ -162,7 +168,7 @@ struct TargetSizeDialogView: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 10)
                             .background(Color.blue.opacity(isCompressButtonHovering ? 1.0 : 0.8))
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .scaleEffect(isCompressButtonHovering ? 1.05 : 1.0)
                             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isCompressButtonHovering)
                     }

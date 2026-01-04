@@ -11,6 +11,7 @@ struct UpdateView: View {
     @ObservedObject var checker = UpdateChecker.shared
     @State private var hoverLocation: CGPoint = .zero
     @State private var isBgHovering: Bool = false
+    @AppStorage("useTransparentBackground") private var useTransparentBackground = false
     
     // Matched state from Clipboard Preview
     @State private var isUpdateHovering = false
@@ -93,9 +94,9 @@ struct UpdateView: View {
                         .padding(.vertical, 12)
                         .background(Color.white.opacity(isLaterHovering ? 0.2 : 0.1))
                         .foregroundStyle(.white)
-                        .cornerRadius(12)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                         .scaleEffect(isLaterHovering ? 1.02 : 1.0)
@@ -121,9 +122,9 @@ struct UpdateView: View {
                     .padding(.vertical, 12)
                     .background(Color.blue.opacity(isUpdateHovering ? 1.0 : 0.8))
                     .foregroundStyle(.white)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
                     .scaleEffect(isUpdateHovering ? 1.02 : 1.0)
@@ -134,7 +135,13 @@ struct UpdateView: View {
         }
         .padding(24)
         .frame(width: 500, height: 450)
-        .background(Color.black)
+        .background(useTransparentBackground ? AnyShapeStyle(Color.clear) : AnyShapeStyle(Color.black))
+        .background {
+            if useTransparentBackground {
+                Color.clear
+                    .liquidGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+        }
         .overlay { 
             HexagonDotsEffect(
                 mouseLocation: hoverLocation, 

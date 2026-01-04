@@ -53,7 +53,7 @@ struct DroppedItemView: View {
                 if showRemoveButton {
                     Button(action: onRemove) {
                         ZStack {
-                            Circle()
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(.ultraThinMaterial)
                                 .frame(width: 20, height: 20)
                             

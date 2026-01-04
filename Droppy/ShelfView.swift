@@ -11,6 +11,7 @@ import SwiftUI
 struct ShelfView: View {
     /// Reference to the app state
     @Bindable var state: DroppyState
+    @AppStorage("useTransparentBackground") private var useTransparentBackground = false
     
     var body: some View {
         ZStack {
@@ -21,7 +22,7 @@ struct ShelfView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
+        .background(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
         .dropDestination(for: URL.self) { urls, _ in
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 state.addItems(from: urls)
@@ -57,7 +58,7 @@ struct ShelfView: View {
     private var emptyStateView: some View {
         VStack(spacing: 12) {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.primary.opacity(0.05))
                     .frame(width: 60, height: 60)
                 

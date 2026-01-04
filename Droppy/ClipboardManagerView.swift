@@ -62,7 +62,7 @@ struct ClipboardManagerView: View {
             Divider().overlay(Color.white.opacity(0.1))
             previewPane
         }
-        .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
+        .frame(minWidth: 720, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
         .background(useTransparentBackground ? Color.clear : Color.black)
         .background {
             if useTransparentBackground {
@@ -145,10 +145,10 @@ struct ClipboardManagerView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
+            .background(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                Capsule()
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
@@ -227,14 +227,14 @@ struct ClipboardManagerView: View {
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(isSearchVisible ? .white : .secondary)
+                        .foregroundStyle(isSearchHovering ? .white : .secondary)
                         .padding(6)
                         .background(
-                            Circle()
-                                .fill(isSearchVisible ? Color.white.opacity(0.1) : Color.clear)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isSearchHovering ? Color.white.opacity(0.1) : Color.clear)
                         )
                         .overlay(
-                             Circle()
+                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(Color.white.opacity(0.1), lineWidth: isSearchHovering ? 1 : 0)
                         )
                         .scaleEffect(isSearchHovering ? 1.1 : 1.0)
@@ -246,10 +246,34 @@ struct ClipboardManagerView: View {
                         isSearchHovering = hovering
                     }
                 }
+                
+                // Reset Size Button - similar style to search
+                Button(action: onReset) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isResetHovering ? .white : .secondary)
+                        .padding(6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isResetHovering ? Color.white.opacity(0.1) : Color.clear)
+                        )
+                        .overlay(
+                             RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: isResetHovering ? 1 : 0)
+                        )
+                        .scaleEffect(isResetHovering ? 1.1 : 1.0)
+                }
+                .buttonStyle(.plain)
+                .help("Reset Window Size")
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        isResetHovering = hovering
+                    }
+                }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
             .padding(.top, 16)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
             .background(WindowDragArea()) // Keep drag area behind
             .contentShape(Rectangle())
             
@@ -294,7 +318,7 @@ struct ClipboardManagerView: View {
                             )
                         )
                 )
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .onAppear {
                     // Reset animation state so it triggers every time the view appears
@@ -432,37 +456,16 @@ struct ClipboardManagerView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sortedHistory)
                     }
                     .onAppear {
                         scrollProxy = proxy
                     }
                 }
             } // Close else
-            Spacer()
-            
-            HStack {
-                 Button(action: onReset) {
-                     Image(systemName: "arrow.counterclockwise")
-                         .font(.system(size: 12))
-                         .foregroundStyle(isResetHovering ? .primary : .secondary)
-                         .opacity(isResetHovering ? 1.0 : 0.5)
-                         .padding(8)
-                         .background(Color.white.opacity(isResetHovering ? 0.15 : 0.05))
-                         .clipShape(Circle())
-                         .scaleEffect(isResetHovering ? 1.1 : 1.0)
-                 }
-                 .buttonStyle(.plain)
-                 .help("Reset Window Size")
-                 .onHover { hovering in
-                     withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                         isResetHovering = hovering
-                     }
-                 }
-                 .padding(8)
-                 Spacer()
-            }
+
         }
         .frame(width: 300)
         .frame(maxHeight: .infinity) // Sidebar takes full height, but width fixed
@@ -489,18 +492,18 @@ struct ClipboardManagerView: View {
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity)
                     .background(Color.white.opacity(0.1))
-                    .cornerRadius(6)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
         }
         .padding(12)
         .background(Color.orange.opacity(0.1))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.orange.opacity(0.2), lineWidth: 1)
         )
-        .padding(.horizontal)
+        .padding(.horizontal, 20)
     }
     
     private func openAccessibilitySettings() {
@@ -682,9 +685,9 @@ struct ClipboardItemRow: View {
         HStack {
             // Icon
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.white.opacity(0.1))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 48, height: 48)
                 
                 Image(systemName: iconName(for: item.type))
                     .foregroundStyle(.white)
@@ -736,12 +739,12 @@ struct ClipboardItemRow: View {
         }
         .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isSelected ? Color.blue.opacity(0.4) : (isHovering ? Color.white.opacity(0.12) : Color.white.opacity(0.06)))
         )
         .overlay {
             if isRenaming {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(
                         Color.accentColor.opacity(0.8),
                         style: StrokeStyle(
@@ -952,7 +955,7 @@ struct ClipboardPreviewView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(maxHeight: 220)
-                                .cornerRadius(8)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             
                             // OCR Button
                             Button {
@@ -991,9 +994,9 @@ struct ClipboardPreviewView: View {
                                 .padding(.vertical, 6)
                                 .background(.ultraThinMaterial)
                                 .background(Color.black.opacity(0.4))
-                                .clipShape(Capsule())
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .overlay(
-                                    Capsule()
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .stroke(Color.white.opacity(0.25), lineWidth: 1)
                                 )
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
@@ -1080,9 +1083,9 @@ struct ClipboardPreviewView: View {
                             .padding(.vertical, 12)
                             .background(Color.blue.opacity(isPasteHovering ? 1.0 : 0.8))
                             .foregroundStyle(.white)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .stroke(Color.white.opacity(0.2), lineWidth: 1)
                             )
                             .scaleEffect(isPasteHovering ? 1.02 : 1.0)
@@ -1104,9 +1107,9 @@ struct ClipboardPreviewView: View {
                             .padding(.vertical, 12)
                             .background(Color.white.opacity(isCopyHovering ? 0.2 : 0.1))
                             .foregroundStyle(.white)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
                             )
                             .scaleEffect(isCopyHovering ? 1.02 : 1.0)
@@ -1130,7 +1133,7 @@ struct ClipboardPreviewView: View {
                 } label: {
                     ZStack {
                         // Background glow when favorited
-                        Circle()
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(Color.yellow.opacity(liveItem.isFavorite ? 0.2 : 0))
                             .blur(radius: 8)
                             .scaleEffect(liveItem.isFavorite ? 1.2 : 0.8)
@@ -1143,9 +1146,9 @@ struct ClipboardPreviewView: View {
                     .frame(width: 44, height: 44)
                     .background(isStarHovering ? Color.yellow.opacity(0.1) : Color.clear)
                     .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(isStarHovering ? Color.yellow.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
                     )
                     .scaleEffect(isStarHovering ? 1.08 : 1.0)
@@ -1172,9 +1175,9 @@ struct ClipboardPreviewView: View {
                             .frame(width: 44, height: 44)
                             .background(isEditHovering ? Color.white.opacity(0.15) : Color.clear)
                             .background(.ultraThinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .stroke(isEditHovering ? Color.white.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
                             )
                             .scaleEffect(isEditHovering ? 1.08 : 1.0)
@@ -1203,7 +1206,7 @@ struct ClipboardPreviewView: View {
                             .padding(.vertical, 12)
                             .background(Color.green.opacity(isSaveHovering ? 1.0 : 0.8))
                             .foregroundStyle(.white)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .scaleEffect(isSaveHovering ? 1.02 : 1.0)
                     }
                     .buttonStyle(.plain)
@@ -1223,7 +1226,7 @@ struct ClipboardPreviewView: View {
                             .padding(.vertical, 12)
                             .background(Color.red.opacity(isCancelHovering ? 1.0 : 0.8))
                             .foregroundStyle(.white)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .scaleEffect(isCancelHovering ? 1.02 : 1.0)
                     }
                     .buttonStyle(.plain)
@@ -1242,9 +1245,9 @@ struct ClipboardPreviewView: View {
                         .frame(width: 44, height: 44)
                         .background(isTrashHovering ? Color.red.opacity(0.15) : Color.clear)
                         .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(isTrashHovering ? Color.red.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
                         )
                         .scaleEffect(isTrashHovering ? 1.08 : 1.0)
@@ -1372,10 +1375,10 @@ struct MultiSelectPreviewView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                Capsule()
-                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
             )
             
             Spacer()
@@ -1393,9 +1396,9 @@ struct MultiSelectPreviewView: View {
                     .padding(.vertical, 12)
                     .background(Color.blue.opacity(isPasteHovering ? 1.0 : 0.8))
                     .foregroundStyle(.white)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
                     .scaleEffect(isPasteHovering ? 1.02 : 1.0)
@@ -1418,9 +1421,10 @@ struct MultiSelectPreviewView: View {
                     .padding(.vertical, 12)
                     .background(Color.white.opacity(isCopyHovering ? 0.2 : 0.1))
                     .foregroundStyle(.white)
-                    .cornerRadius(12)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
                     .scaleEffect(isCopyHovering ? 1.02 : 1.0)
@@ -1440,9 +1444,9 @@ struct MultiSelectPreviewView: View {
                         .frame(width: 44, height: 44)
                         .background(isDeleteHovering ? Color.red.opacity(0.15) : Color.clear)
                         .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(isDeleteHovering ? Color.red.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
                         )
                         .scaleEffect(isDeleteHovering ? 1.08 : 1.0)
@@ -1483,7 +1487,7 @@ struct StackedCardView: View {
         VStack(spacing: 8) {
             // Icon
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.white.opacity(0.15))
                     .frame(width: 48, height: 48)
                 
@@ -1503,11 +1507,11 @@ struct StackedCardView: View {
         .padding(16)
         .frame(width: 130, height: 120)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(
                     LinearGradient(
                         colors: [.white.opacity(0.3), .white.opacity(0.05)],
@@ -1544,7 +1548,6 @@ struct WindowDragArea: NSViewRepresentable {
     
     func updateNSView(_ nsView: WindowDragNSView, context: Context) {}
 }
-
 class WindowDragNSView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
@@ -1554,4 +1557,5 @@ class WindowDragNSView: NSView {
         // Consumed
     }
 }
+
 

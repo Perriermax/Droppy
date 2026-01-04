@@ -66,7 +66,7 @@ struct SettingsView: View {
         }
         .coordinateSpace(name: "settingsView")
         // Fix: Replace visionOS glassEffect with macOS material
-        .background(.ultraThinMaterial)
+        .background(useTransparentBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.black))
         .onContinuousHover(coordinateSpace: .named("settingsView")) { phase in
             switch phase {
             case .active(let location):
@@ -295,9 +295,9 @@ struct SettingsView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Color.black.opacity(0.3))
-                            .cornerRadius(6)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
                                     .stroke(
                                         Color.accentColor.opacity(isHistoryLimitEditing ? 0.8 : 0),
                                         style: StrokeStyle(
@@ -353,7 +353,7 @@ struct SettingsView: View {
                         Image(nsImage: NSWorkspace.shared.icon(forFile: appPath.path))
                             .resizable()
                             .frame(width: 24, height: 24)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     } else {
                         Image(systemName: "app.fill")
                             .font(.system(size: 20))
@@ -434,7 +434,7 @@ struct SettingsView: View {
                                     Image(nsImage: icon)
                                         .resizable()
                                         .frame(width: 28, height: 28)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                 }
                                 
                                 VStack(alignment: .leading) {
