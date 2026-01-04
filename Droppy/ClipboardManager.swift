@@ -282,4 +282,10 @@ class ClipboardManager: ObservableObject {
             history[index].customTitle = trimmed.isEmpty ? nil : trimmed
         }
     }
+
+    func updateItemContent(_ item: ClipboardItem, newContent: String) {
+        if let index = history.firstIndex(where: { $0.id == item.id }) {
+            history[index].content = newContent
+        }
+    }
 }

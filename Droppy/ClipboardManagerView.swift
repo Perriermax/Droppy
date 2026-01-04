@@ -292,6 +292,14 @@ struct ClipboardManagerView: View {
                         dashPhase = 6
                     }
                 }
+                .onChange(of: isSearchVisible) { visible in
+                   if visible {
+                       dashPhase = 0
+                       withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
+                           dashPhase = 6
+                       }
+                   }
+                }
             }
             
             if !manager.hasAccessibilityPermission {
@@ -718,8 +726,17 @@ struct ClipboardItemRow: View {
                         )
                     )
                     .onAppear {
+                        dashPhase = 0
                         withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
-                            dashPhase = 8
+                            dashPhase = 8 // Matches dash: [4, 4] -> total 8
+                        }
+                    }
+                    .onChange(of: isRenaming) { renaming in
+                        if renaming {
+                            dashPhase = 0
+                            withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
+                                dashPhase = 8
+                            }
                         }
                     }
             }
@@ -836,6 +853,17 @@ struct ClipboardPreviewView: View {
     @State private var isTrashHovering = false
     @State private var starAnimationTrigger = false
     
+    // Animation Namespace
+    @Namespace private var animationNamespace
+    
+    // Content Editing State
+    @State private var isEditing = false
+    @State private var editedContent = ""
+    @State private var isEditHovering = false
+    @State private var isSaveHovering = false
+    @State private var isCancelHovering = false
+    @State private var dashPhase: CGFloat = 0
+    
     private func copyToClipboard() {
         NSPasteboard.general.clearContents()
         if let str = item.content {
@@ -847,19 +875,31 @@ struct ClipboardPreviewView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            Spacer()
-            
             // Content Preview
             VStack {
                 switch item.type {
                 case .text, .url:
-                    ScrollView {
-                        Text(item.content ?? "")
-                            .font(.body)
+                    if isEditing {
+                        TextEditor(text: $editedContent)
+                            .font(.system(.body, design: .monospaced))
+                            .scrollContentBackground(.hidden)
                             .foregroundStyle(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
+                            .padding(12)
+                            .onAppear {
+                                dashPhase = 0
+                                withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
+                                    dashPhase = 6
+                                }
+                            }
+                    } else {
+                        ScrollView {
+                            Text(liveItem.content ?? "")
+                                .font(.body)
+                                .foregroundStyle(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
                     }
                     
                 case .image:
@@ -895,8 +935,31 @@ struct ClipboardPreviewView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isEditing ? Color.black.opacity(0.3) : Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        Color.accentColor.opacity(isEditing ? 0.8 : 0),
+                        style: StrokeStyle(
+                            lineWidth: 1.5,
+                            lineCap: .round,
+                            dash: [3, 3],
+                            dashPhase: dashPhase
+                        )
+                    )
+            )
+            .animation(.easeInOut(duration: 0.3), value: isEditing)
+            .onChange(of: isEditing) { editing in
+                if editing {
+                    dashPhase = 0
+                    withAnimation(.linear(duration: 0.5).repeatForever(autoreverses: false)) {
+                        dashPhase = 6
+                    }
+                }
+            }
             
             // Metadata Footer
             HStack {
@@ -914,50 +977,56 @@ struct ClipboardPreviewView: View {
             // Action Buttons
             HStack(spacing: 12) {
                 // Main Paste Button
-                Button(action: onPaste) {
-                    Text("Paste")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.blue.opacity(isPasteHovering ? 1.0 : 0.8))
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        )
-                        .scaleEffect(isPasteHovering ? 1.02 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                        isPasteHovering = hovering
+                if !isEditing {
+                    Button(action: onPaste) {
+                        Text("Paste")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.blue.opacity(isPasteHovering ? 1.0 : 0.8))
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                            .scaleEffect(isPasteHovering ? 1.02 : 1.0)
                     }
-                }
-
-                // Copy Button
-                Button(action: copyToClipboard) {
-                    Text("Copy")
-                        .fontWeight(.medium)
-                        .frame(width: 80)
-                        .padding(.vertical, 12)
-                        .background(Color.white.opacity(isCopyHovering ? 0.2 : 0.1))
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                        .scaleEffect(isCopyHovering ? 1.02 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                        isCopyHovering = hovering
+                    .buttonStyle(.plain)
+                    .matchedGeometryEffect(id: "PrimaryAction", in: animationNamespace)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            isPasteHovering = hovering
+                        }
+                    }
+                    
+                    // Copy Button
+                    Button(action: copyToClipboard) {
+                        Text("Copy")
+                            .fontWeight(.medium)
+                            .frame(width: 80)
+                            .padding(.vertical, 12)
+                            .background(Color.white.opacity(isCopyHovering ? 0.2 : 0.1))
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(isCopyHovering ? 1.02 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                    .matchedGeometryEffect(id: "SecondaryAction", in: animationNamespace)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            isCopyHovering = hovering
+                        }
                     }
                 }
                 
-                // Favorite Button
+                // Favorite Button - Always visible, slides naturally
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                         starAnimationTrigger.toggle()
@@ -992,6 +1061,80 @@ struct ClipboardPreviewView: View {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
                         isStarHovering = hovering
                     }
+                }
+                
+                // Edit Button (Text/URL only)
+                if !isEditing && (item.type == .text || item.type == .url) {
+                    Button {
+                        editedContent = item.content ?? ""
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isEditing = true
+                        }
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(isEditHovering ? .white : .secondary)
+                            .frame(width: 44, height: 44)
+                            .background(isEditHovering ? Color.white.opacity(0.15) : Color.clear)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(isEditHovering ? Color.white.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(isEditHovering ? 1.08 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Edit Content")
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            isEditHovering = hovering
+                        }
+                    }
+                }
+                
+                // Edit Mode Actions
+                if isEditing {
+                    // Save
+                    Button {
+                        manager.updateItemContent(item, newContent: editedContent)
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isEditing = false
+                        }
+                    } label: {
+                        Text("Save")
+                            .fontWeight(.semibold)
+                            .frame(width: 70)
+                            .padding(.vertical, 12)
+                            .background(Color.green.opacity(isSaveHovering ? 1.0 : 0.8))
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
+                            .scaleEffect(isSaveHovering ? 1.02 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                    .matchedGeometryEffect(id: "PrimaryAction", in: animationNamespace)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .onHover { h in withAnimation { isSaveHovering = h } }
+                    
+                    // Cancel
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isEditing = false
+                        }
+                    } label: {
+                        Text("Cancel")
+                            .fontWeight(.medium)
+                            .frame(width: 70)
+                            .padding(.vertical, 12)
+                            .background(Color.red.opacity(isCancelHovering ? 1.0 : 0.8))
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
+                            .scaleEffect(isCancelHovering ? 1.02 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                    .matchedGeometryEffect(id: "SecondaryAction", in: animationNamespace)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .onHover { h in withAnimation { isCancelHovering = h } }
                 }
                 
                 // Delete Button

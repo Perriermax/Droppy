@@ -3,10 +3,11 @@
 This release marks a major milestone for Droppy, bringing the **Clipboard Manager** to full maturity and introducing significant architectural improvements for stability.
 
 ### 📋 Liquid Clipboard Manager
+- **Direct Content Editing**: Edit text and URLs directly in the history. The UI morphs seamlessly into a dedicated editor.
 - **Smart Deduplication**: Copying an existing item now intelligently moves it to the top without creating duplicates.
 - **Persistent Metadata**: Your "Favorites" and "Renamed Titles" are preserved even if you copy the item again.
 - **Visual History**: Rich previews for text, images, files, and colors.
-- **Fluid Search**: Instantly filter your history with the new "marching ants" animated search bar (`Cmd+F`).
+- **Fluid Animations**: "Marching ants" animations for search, rename, and editing modes indicate active states clearly.
 - **Drag & Drop**: Seamlessly drag items from history directly to the Shelf, Basket, or other apps.
 
 ### 🛡️ Core Stability & Performance
