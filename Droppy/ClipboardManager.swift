@@ -21,18 +21,21 @@ struct ClipboardItem: Identifiable, Codable, Hashable {
     var isConcealed: Bool = false // Password/sensitive content
     var customTitle: String? // User-defined title for easy finding
     
+    var rtfData: Data? // Rich Text Formatting data
+    
     // Custom Codable for backwards compatibility
     enum CodingKeys: String, CodingKey {
-        case id, type, content, imageData, date, sourceApp, isFavorite, isConcealed, customTitle
+        case id, type, content, imageData, rtfData, date, sourceApp, isFavorite, isConcealed, customTitle
     }
     
-    init(id: UUID = UUID(), type: ClipboardType, content: String? = nil, imageData: Data? = nil, 
+    init(id: UUID = UUID(), type: ClipboardType, content: String? = nil, imageData: Data? = nil, rtfData: Data? = nil,
          date: Date = Date(), sourceApp: String? = nil, isFavorite: Bool = false, 
          isConcealed: Bool = false, customTitle: String? = nil) {
         self.id = id
         self.type = type
         self.content = content
         self.imageData = imageData
+        self.rtfData = rtfData
         self.date = date
         self.sourceApp = sourceApp
         self.isFavorite = isFavorite
@@ -46,6 +49,7 @@ struct ClipboardItem: Identifiable, Codable, Hashable {
         type = try container.decode(ClipboardType.self, forKey: .type)
         content = try container.decodeIfPresent(String.self, forKey: .content)
         imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
+        rtfData = try container.decodeIfPresent(Data.self, forKey: .rtfData)
         date = try container.decode(Date.self, forKey: .date)
         sourceApp = try container.decodeIfPresent(String.self, forKey: .sourceApp)
         isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
@@ -299,7 +303,9 @@ class ClipboardManager: ObservableObject {
             if let str = item.string(forType: .string) {
                 // Avoid empty strings
                 if !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    results.append(ClipboardItem(type: .text, content: str, sourceApp: app, isConcealed: isConcealed))
+                    // Try to capture RTF data if available
+                    let rtf = item.data(forType: .rtf) ?? item.data(forType: .rtfd)
+                    results.append(ClipboardItem(type: .text, content: str, rtfData: rtf, sourceApp: app, isConcealed: isConcealed))
                     continue
                 }
             }
@@ -334,6 +340,10 @@ class ClipboardManager: ObservableObject {
         switch item.type {
         case .text:
             if let str = item.content {
+                // Restore RTF if available
+                if let rtf = item.rtfData {
+                    pasteboard.setData(rtf, forType: .rtf)
+                }
                 pasteboard.setString(str, forType: .string)
             }
         case .url:

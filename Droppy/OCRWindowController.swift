@@ -50,7 +50,7 @@ final class OCRWindowController: NSObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.level = .floating
+        panel.level = .screenSaver // Ensure it floats above Clipboard (.popUpMenu)
         panel.isMovableByWindowBackground = true // Allow moving
         panel.hidesOnDeactivate = false
         

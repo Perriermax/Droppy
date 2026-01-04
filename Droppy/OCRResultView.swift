@@ -106,7 +106,7 @@ struct OCRResultView: View {
                 // Content
                 ScrollView {
                     Text(text)
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.body) // Cleaner look than monospaced
                         .foregroundColor(.white.opacity(0.9))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)

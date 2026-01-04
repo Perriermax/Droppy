@@ -889,6 +889,7 @@ struct ClipboardPreviewView: View {
     @State private var isSaveHovering = false
     @State private var isCancelHovering = false
     @State private var dashPhase: CGFloat = 0
+    @State private var isExtractingText = false
     
     private func copyToClipboard() {
         NSPasteboard.general.clearContents()
@@ -919,22 +920,80 @@ struct ClipboardPreviewView: View {
                             }
                     } else {
                         ScrollView {
-                            Text(liveItem.content ?? "")
-                                .font(.body)
-                                .foregroundStyle(.white)
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
+                            // Try to render RTF if available, otherwise fallback to plain text
+                            if let rtfData = liveItem.rtfData,
+                               let attributed = try? rtfToAttributedString(rtfData) {
+                                Text(attributed)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            } else {
+                                Text(liveItem.content ?? "")
+                                    .font(.body)
+                                    .foregroundStyle(.white)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
                     
                 case .image:
                     if let data = item.imageData, let nsImg = NSImage(data: data) {
-                        Image(nsImage: nsImg)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 220)
-                            .cornerRadius(8)
+                        ZStack(alignment: .bottomTrailing) {
+                            Image(nsImage: nsImg)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxHeight: 220)
+                                .cornerRadius(8)
+                            
+                            // OCR Button
+                            Button {
+                                guard !isExtractingText else { return }
+                                isExtractingText = true
+                                Task {
+                                    do {
+                                        let text = try await OCRService.shared.performOCR(on: nsImg)
+                                        await MainActor.run {
+                                            isExtractingText = false
+                                            OCRWindowController.shared.show(with: text)
+                                        }
+                                    } catch {
+                                        await MainActor.run {
+                                            isExtractingText = false
+                                            // Handle error if needed, for now just reset state
+                                            print("OCR Error: \(error)")
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if isExtractingText {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                            .tint(.white)
+                                            .frame(width: 12, height: 12)
+                                    } else {
+                                        Image(systemName: "text.viewfinder")
+                                    }
+                                    Text(isExtractingText ? "Extracting..." : "Extract Text")
+                                }
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(12)
+                        }
                     } else {
                         Image(systemName: "photo")
                             .font(.system(size: 48))
@@ -1194,6 +1253,46 @@ struct ClipboardPreviewView: View {
         .padding(20)
     }
 }
+
+// MARK: - RTF Helper
+private func rtfToAttributedString(_ data: Data) throws -> AttributedString {
+    let nsAttr = try NSAttributedString(
+        data: data,
+        options: [.documentType: NSAttributedString.DocumentType.rtf],
+        documentAttributes: nil
+    )
+    
+    // Create a mutable copy to adjust colors for dark mode
+    let mutable = NSMutableAttributedString(attributedString: nsAttr)
+    
+    // Scale font size up if it's too small (often RTF is 11pt/12pt)
+    mutable.enumerateAttribute(.font, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, _ in
+        if let font = value as? NSFont {
+            if font.pointSize < 14 {
+                 // Creating a new font with the same descriptor but larger size
+                 if let newFont = NSFont(descriptor: font.fontDescriptor, size: 14) {
+                     mutable.addAttribute(.font, value: newFont, range: range)
+                 }
+            }
+        }
+    }
+    
+    // Force white color for visibility on dark background
+    // We remove existing foreground color and enforce white
+    mutable.enumerateAttribute(.foregroundColor, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, _ in
+        mutable.addAttribute(.foregroundColor, value: NSColor.white, range: range)
+    }
+    
+    // Remove background color to ensure transparency (avoid White on White)
+    mutable.enumerateAttribute(.backgroundColor, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, _ in
+        if value != nil {
+            mutable.removeAttribute(.backgroundColor, range: range)
+        }
+    }
+    
+    return AttributedString(mutable)
+}
+
 
 // MARK: - Multi-Select Preview View
 

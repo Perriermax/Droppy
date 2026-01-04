@@ -73,7 +73,7 @@ class OCRService {
         return try await performOCR(on: image)
     }
     
-    private func performOCR(on image: NSImage) async throws -> String {
+    func performOCR(on image: NSImage) async throws -> String {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             throw OCRError.couldNotProcessImageData
         }
