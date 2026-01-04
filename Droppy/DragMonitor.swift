@@ -64,9 +64,17 @@ final class DragMonitor: ObservableObject {
     private func checkForActiveDrag() {
         autoreleasepool {
             // Retrieve pasteboard handle locally to ensure validity
+            let mouseIsDown = NSEvent.pressedMouseButtons & 1 != 0
+            
+            // Optimization: If mouse is not down and we are not tracking a drag, 
+            // return early to avoid unnecessary NSPasteboard allocation/release (which caused crashes)
+            if !mouseIsDown && !dragActive {
+                return
+            }
+
+            // Retrieve pasteboard handle locally to ensure validity
             let dragPasteboard = NSPasteboard(name: .drag)
             let currentChangeCount = dragPasteboard.changeCount
-            let mouseIsDown = NSEvent.pressedMouseButtons & 1 != 0
             
             // Detect drag START
             if currentChangeCount != dragStartChangeCount && mouseIsDown {
