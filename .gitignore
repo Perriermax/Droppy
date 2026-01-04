@@ -28,6 +28,4 @@ Pods/
 .build/
 
 # Other
-.gemini/
-.agent/
 xcuserdata/
