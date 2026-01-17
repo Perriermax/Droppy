@@ -410,10 +410,10 @@ final class NotchWindowController: NSObject, ObservableObject {
                 let rowCount = ceil(Double(DroppyState.shared.items.count) / 5.0)
                 var expandedHeight = max(1, rowCount) * 110 + 54
                 
-                // Add extra height for media player when shelf is empty but music is playing
-                let shouldShowPlayer = MusicManager.shared.isPlaying || MusicManager.shared.wasRecentlyPlaying
-                if DroppyState.shared.items.isEmpty && shouldShowPlayer && !MusicManager.shared.isPlayerIdle {
-                    expandedHeight += 100
+                // Add extra height when shelf is empty (media player may be showing)
+                // Using 200px to ensure full coverage of media player controls
+                if DroppyState.shared.items.isEmpty {
+                    expandedHeight += 200
                 }
 
                 expandedShelfZone = NSRect(
@@ -489,11 +489,11 @@ final class NotchWindowController: NSObject, ObservableObject {
                     let centerX = targetScreen.frame.origin.x + targetScreen.frame.width / 2
                     let rowCount = ceil(Double(DroppyState.shared.items.count) / 5.0)
                     var expandedHeight = max(1, rowCount) * 110 + 54
-                    
-                    // Add extra height for media player when shelf is empty but music is playing
-                    let shouldShowPlayer = MusicManager.shared.isPlaying || MusicManager.shared.wasRecentlyPlaying
-                    if DroppyState.shared.items.isEmpty && shouldShowPlayer && !MusicManager.shared.isPlayerIdle {
-                        expandedHeight += 100
+
+                    // Add extra height when shelf is empty (media player may be showing)
+                    // Using 200px to ensure full coverage of media player controls
+                    if DroppyState.shared.items.isEmpty {
+                        expandedHeight += 200
                     }
 
                     expandedShelfZone = NSRect(
